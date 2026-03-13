@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-csv_file = Path(__file__).parent / 'output' / 'step1-preprocessing' / 'results' / '31star_pkg_136_wide.csv'
+csv_file = Path(__file__).parent.parent / 'output' / 'step1-preprocessing' / 'results' / '31star_pkg_136_wide.csv'
 df = pd.read_csv(csv_file)
 
 print("="*70)

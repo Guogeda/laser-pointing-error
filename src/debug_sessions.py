@@ -8,10 +8,10 @@ import numpy as np
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from param_mapping_jg01 import PARAM_MAPPING, get_param_name
 
-OUTPUT_DIR = Path(__file__).parent / 'output'
+OUTPUT_DIR = Path(__file__).parent.parent / 'output'
 STEP1_OUTPUT = OUTPUT_DIR / 'step1-preprocessing' / 'results'
 STEP2_OUTPUT = OUTPUT_DIR / 'step2-state-filter' / 'results'
 

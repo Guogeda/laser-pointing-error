@@ -32,8 +32,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │   ├── 31star/            # A31星数据
 │   ├── 32star/            # A32星数据
 │   └── 61star/            # A61星数据
+├── src/                   # 处理过程代码
+│   ├── check_flags.py
+│   ├── debug_full_flow.py
+│   ├── debug_outlier.py
+│   ├── debug_sessions.py
+│   ├── debug_state_values.py
+│   ├── debug_step1_data.py
+│   ├── debug_step1_keys.py
+│   ├── debug_step2.py
+│   ├── final_verification.py
+│   ├── rerun_step2.py
+│   ├── validate_data_consistency.py
+│   ├── verify_complete.py
+│   ├── verify_step1.py
+│   ├── verify_step1_complete.py
+│   └── verify_step2_step3.py
+├── output/                # 输出结果目录
+│   ├── step1-preprocessing/
+│   ├── step2-state-filter/
+│   └── step3-error-calc/
 ├── param_mapping_jg01.py   # A27~A36星参数映射
 ├── param_mapping_jg02.py   # A57~A66星参数映射
+├── CLAUDE.md               # 项目文档
 └── 需求文档-new.md         # 详细需求文档和执行规范
 ```
 
@@ -181,23 +202,23 @@ output/
 
 ```bash
 # 运行完整三阶段处理流程（推荐）
-python verify_complete.py
+python src/verify_complete.py
 
 # 仅使用已有数据验证结果
-python final_verification.py
+python src/final_verification.py
 ```
 
 ### 分步验证
 
 ```bash
 # Step 1: 仅预处理
-python verify_step1.py
+python src/verify_step1.py
 
 # Step 1（完整版）: 预处理带完整报告
-python verify_step1_complete.py
+python src/verify_step1_complete.py
 
 # Step 2 & 3: 状态筛选和误差计算
-python verify_step2_step3.py
+python src/verify_step2_step3.py
 ```
 
 ## 代码架构
@@ -206,9 +227,9 @@ python verify_step2_step3.py
 
 | 脚本 | 功能 | 输入 | 输出 |
 |------|------|------|------|
-| `verify_complete.py` | 完整三阶段流水线 | ori-data/* 原始CSV | output/ 完整输出 |
-| `final_verification.py` | 利用已有Step1数据验证Step2+3 | output/step1-preprocessing/ | output/step3-error-calc/ |
-| `verify_step1.py` | 仅Step1预处理示例 | ori-data/* | output/step1-preprocessing/ |
+| `src/verify_complete.py` | 完整三阶段流水线 | ori-data/* 原始CSV | output/ 完整输出 |
+| `src/final_verification.py` | 利用已有Step1数据验证Step2+3 | output/step1-preprocessing/ | output/step3-error-calc/ |
+| `src/verify_step1.py` | 仅Step1预处理示例 | ori-data/* | output/step1-preprocessing/ |
 | `param_mapping_jg01.py` | A27~A36星参数映射 | - | PARAM_MAPPING字典 |
 | `param_mapping_jg02.py` | A57~A66星参数映射 | - | PARAM_MAPPING字典 |
 

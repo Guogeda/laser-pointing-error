@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from param_mapping_jg01 import PARAM_MAPPING, get_param_name
 
 # 配置常量
@@ -67,7 +67,7 @@ TERMINALS = {
 
 def cleanup_and_create_dirs():
     """创建输出目录（不删除已有目录，避免文件占用问题）"""
-    base_dir = Path(__file__).parent / 'output'
+    base_dir = Path(__file__).parent.parent / 'output'
 
     for step in ['step1-preprocessing', 'step2-state-filter', 'step3-error-calc']:
         for subdir in ['reports', 'plots', 'results']:
@@ -1050,7 +1050,7 @@ def generate_valid_distribution_plots(step1_data, terminal_data, base_dir):
             print(f"有效数据分布图 → {terminal}_valid_distribution.png")
 
 def main():
-    csv_file = Path(__file__).parent / 'ori-data' / '31star' / 'CSCN-A0031_TelPlatformParsed_20260312063411_1.csv'
+    csv_file = Path(__file__).parent.parent / 'ori-data' / '31star' / 'CSCN-A0031_TelPlatformParsed_20260312063411_1.csv'
 
     if not csv_file.exists():
         print(f"文件不存在: {csv_file}")

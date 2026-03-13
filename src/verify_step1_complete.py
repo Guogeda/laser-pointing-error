@@ -17,11 +17,11 @@ plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
 # 导入参数映射
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from param_mapping_jg01 import PARAM_MAPPING, get_param_name
 
 # 可配置参数
-OUTPUT_DIR = Path(__file__).parent / 'output' / 'step1-preprocessing'
+OUTPUT_DIR = Path(__file__).parent.parent / 'output' / 'step1-preprocessing'
 
 # 清理并重新创建目录
 if OUTPUT_DIR.exists():
@@ -229,7 +229,7 @@ def rename_columns_to_chinese(df):
     return df.rename(columns=rename_map)
 
 if __name__ == '__main__':
-    csv_file = Path(__file__).parent / 'ori-data' / '31star' / 'CSCN-A0031_TelPlatformParsed_20260307070624_1.csv'
+    csv_file = Path(__file__).parent.parent / 'ori-data' / '31star' / 'CSCN-A0031_TelPlatformParsed_20260307070624_1.csv'
 
     if not csv_file.exists():
         print(f"文件不存在: {csv_file}")

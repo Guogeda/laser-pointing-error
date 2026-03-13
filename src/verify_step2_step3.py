@@ -8,12 +8,12 @@ import numpy as np
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from param_mapping_jg01 import PARAM_MAPPING, get_param_name
 
-STEP1_OUTPUT = Path(__file__).parent / 'output' / 'step1-preprocessing' / 'results'
-STEP2_OUTPUT = Path(__file__).parent / 'output' / 'step2-state-filter'
-STEP3_OUTPUT = Path(__file__).parent / 'output' / 'step3-error-calc'
+STEP1_OUTPUT = Path(__file__).parent.parent / 'output' / 'step1-preprocessing' / 'results'
+STEP2_OUTPUT = Path(__file__).parent.parent / 'output' / 'step2-state-filter'
+STEP3_OUTPUT = Path(__file__).parent.parent / 'output' / 'step3-error-calc'
 
 for dir_path in [STEP2_OUTPUT, STEP3_OUTPUT]:
     dir_path.mkdir(parents=True, exist_ok=True)

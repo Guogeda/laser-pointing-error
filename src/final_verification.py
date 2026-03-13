@@ -14,11 +14,11 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from param_mapping_jg01 import PARAM_MAPPING, get_param_name
 
 def main():
-    base_dir = Path(__file__).parent / 'output'
+    base_dir = Path(__file__).parent.parent / 'output'
 
     print("="*70)
     print("激光指向误差分析系统 - 验证报告")

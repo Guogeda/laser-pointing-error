@@ -8,7 +8,7 @@ import numpy as np
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from param_mapping_jg01 import PARAM_MAPPING, get_param_name
 
 # 终端配置
@@ -35,7 +35,7 @@ TERMINALS = {
     },
 }
 
-base_dir = Path(__file__).parent / 'output' / 'step1-preprocessing' / 'results'
+base_dir = Path(__file__).parent.parent / 'output' / 'step1-preprocessing' / 'results'
 
 print("="*70)
 print("调试 Step2：状态筛选")
