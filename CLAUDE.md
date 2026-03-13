@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 重要注意事项
+
+### 1. 不要创建 .bat 文件
+项目不应包含 .bat（Windows 批处理）文件。所有命令和脚本应使用 Python 或跨平台的脚本语言编写，以确保项目在不同系统（Windows、Linux、macOS）上的可移植性。
+
+### 2. 命令配置不应包含硬编码路径
+Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFolder}），避免使用具体的目录路径，确保项目在不同终端、不同文件夹下能正常工作。
+
 ## 项目概述
 
 这是一个**激光终端指向误差分析系统**，用于处理卫星遥测数据并计算激光通信终端的指向误差。项目包含完整的数据处理流水线，从原始遥测数据到最终误差统计分析。
