@@ -16,7 +16,22 @@ plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from param_mapping_jg01 import PARAM_MAPPING, get_param_name
+sys.path.insert(0, str(Path(__file__).parent / 'config'))
+
+# 动态配置加载
+def load_config(group):
+    """动态加载参数映射和终端配置"""
+    try:
+        if group == 'jg02':
+            from param_mapping_jg02 import PARAM_MAPPING, get_param_name
+        else:  # 默认 jg01
+            from param_mapping_jg01 import PARAM_MAPPING, get_param_name
+
+        from satellite_groups import TERMINALS
+        return PARAM_MAPPING, get_param_name, TERMINALS[group]
+    except Exception as e:
+        print(f"配置加载失败: {e}")
+        raise
 
 # 配置常量
 OUTLIER_SIGMA = 3
@@ -25,49 +40,12 @@ CONTINUITY_GAP_SEC = 10
 SESSION_TRANSIENT_DROP = 10
 RESAMPLE_FREQ = '1S'
 
-# 终端配置
-TERMINALS = {
-    'B1': {
-        'package': '136',
-        'state_param': 'TMJB3031',
-        'state_name': 'B1慢-捕跟工作状态',
-        'error_params': {
-            'A_t': 'TMJB3212', 'A_r': 'TMJB3079',
-            'E_t': 'TMJB3213', 'E_r': 'TMJB3080',
-        }
-    },
-    'B2': {
-        'package': '138',
-        'state_param': 'TMJB4031',
-        'state_name': 'B2慢-捕跟工作状态',
-        'error_params': {
-            'A_t': 'TMJB4212', 'A_r': 'TMJB4079',
-            'E_t': 'TMJB4213', 'E_r': 'TMJB4080',
-        }
-    },
-    'A1-1': {
-        'package': '134',
-        'state_param': 'TMJA3115',
-        'state_name': 'A3慢-1-激光终端状态',
-        'error_params': {
-            'A_t': 'TMJA3148', 'A_r': 'TMJA3147',
-            'E_t': 'TMJA3150', 'E_r': 'TMJA3149',
-        }
-    },
-    'A1-2': {
-        'package': '134',
-        'state_param': 'TMJA3239',
-        'state_name': 'A3慢-2-激光终端状态',
-        'error_params': {
-            'A_t': 'TMJA3272', 'A_r': 'TMJA3271',
-            'E_t': 'TMJA3274', 'E_r': 'TMJA3273',
-        }
-    },
-}
-
-def cleanup_and_create_dirs():
+def cleanup_and_create_dirs(star_name=None):
     """创建输出目录（不删除已有目录，避免文件占用问题）"""
     base_dir = Path(__file__).parent.parent / 'output'
+
+    if star_name:
+        base_dir = base_dir / star_name
 
     for step in ['step1-preprocessing', 'step2-state-filter', 'step3-error-calc']:
         for subdir in ['reports', 'plots', 'results']:
@@ -75,7 +53,7 @@ def cleanup_and_create_dirs():
 
     return base_dir
 
-def step1_preprocessing(csv_path, base_dir):
+def step1_preprocessing(csv_path, base_dir, PARAM_MAPPING, get_param_name, star_name='31star'):
     """Step 1: 数据预处理"""
     print("\n" + "="*60)
     print("Step 1: 数据预处理")
@@ -163,20 +141,20 @@ def step1_preprocessing(csv_path, base_dir):
         df_wide = df_wide.rename(columns=rename_map)
 
         # 保存
-        out_file = base_dir / 'step1-preprocessing' / 'results' / f'31star_pkg_{pkg_code}_wide.csv'
+        out_file = base_dir / 'step1-preprocessing' / 'results' / f'{star_name}_pkg_{pkg_code}_wide.csv'
         df_wide.to_csv(out_file, encoding='utf-8-sig')
         results[pkg_code] = df_wide
         print(f"包 {pkg_code}: {df_wide.shape[1]} 列 → {out_file.name}")
 
     # 生成预处理报告
-    generate_preprocessing_report(results, base_dir)
+    generate_preprocessing_report(results, base_dir, star_name)
 
     # 生成时间轴有效性图
-    generate_timeline_plots(results, base_dir)
+    generate_timeline_plots(results, base_dir, star_name)
 
     return results
 
-def step2_state_filter(step1_data, base_dir):
+def step2_state_filter(step1_data, base_dir, TERMINALS):
     """Step 2: 状态筛选与数据处理（严格按照需求文档）"""
     print("\n" + "="*60)
     print("Step 2: 状态筛选与数据处理")
@@ -197,96 +175,185 @@ def step2_state_filter(step1_data, base_dir):
         'TMR201': 'RM100-Ka接收相控阵主散热面2(-X)',
     }
 
-    # 终端专属参数表（严格按照需求文档）
-    TERMINAL_PARAMS = {
-        'A1-1': {
-            **COMMON_PARAMS,
-            'TMJA3051': 'A3慢-通信1 锁频信号幅值',
-            'TMJA3052': 'A3慢-通信1 频差',
-            'TMJA3115': 'A3慢-1-激光终端状态',
-            'TMJA3147': 'A3慢-1-方位电机当前位置',
-            'TMJA3148': 'A3慢-1-方位电机目标位置',
-            'TMJA3149': 'A3慢-1-俯仰电机当前位置',
-            'TMJA3150': 'A3慢-1-俯仰电机目标位置',
-            'TMJA3151': 'A3慢-1-精跟FSM方位采样位置(主)',
-            'TMJA3152': 'A3慢-1-精跟FSM方位采样位置(备)',
-            'TMJA3153': 'A3慢-1-精跟FSM俯仰采样位置(主)',
-            'TMJA3154': 'A3慢-1-精跟FSM俯仰采用位置(备)',
-            'TMJA3185': 'A3慢-1-后光学基板温度(主)',
-            'TMJA3186': 'A3慢-1-后光学基板温度(备)',
-            'TMJA3188': 'A3慢-1-主镜筒温度(主)',
-            'TMJA3189': 'A3慢-1-主镜筒温度(备)',
-            'TMJA3195': 'A3慢-1-框架温度(℃)',
-            'TMJA3219': 'A3慢-1-相机光斑质心X',
-            'TMJA3220': 'A3慢-1-相机光斑质心Y',
-            'TMJA3221': 'A3慢-1-相机光斑幅值均值',
-            'TMJA3235': 'A3慢-1-跟踪点X',
-            'TMJA3236': 'A3慢-1-跟踪点Y',
-        },
-        'A1-2': {
-            **COMMON_PARAMS,
-            'TMJA3071': 'A3慢-通信2 锁频信号幅值',
-            'TMJA3072': 'A3慢-通信2 频差',
-            'TMJA3239': 'A3慢-2-激光终端状态',
-            'TMJA3271': 'A3慢-2-方位电机当前位置',
-            'TMJA3272': 'A3慢-2-方位电机目标位置',
-            'TMJA3273': 'A3慢-2-俯仰电机当前位置',
-            'TMJA3274': 'A3慢-2-俯仰电机目标位置',
-            'TMJA3275': 'A3慢-2-精跟FSM方位采样位置(主)',
-            'TMJA3276': 'A3慢-2-精跟FSM方位采样位置(备)',
-            'TMJA3277': 'A3慢-2-精跟FSM俯仰采样位置(主)',
-            'TMJA3278': 'A3慢-2-精跟FSM俯仰采用位置(备)',
-            'TMJA3279': 'A3慢-2-超前FSM方位采样位置',
-            'TMJA3309': 'A3慢-2-后光学基板温度(主)',
-            'TMJA3310': 'A3慢-2-后光学基板温度(备)',
-            'TMJA3312': 'A3慢-2-主镜筒温度(主)',
-            'TMJA3313': 'A3慢-2-主镜筒温度(备)',
-            'TMJA3319': 'A3慢-2-框架温度(℃)',
-            'TMJA3343': 'A3慢-2-相机光斑质心X',
-            'TMJA3344': 'A3慢-2-相机光斑质心Y',
-            'TMJA3345': 'A3慢-2-相机光斑幅值均值',
-            'TMJA3359': 'A3慢-2-跟踪点X',
-            'TMJA3360': 'A3慢-2-跟踪点Y',
-        },
-        'B1': {
-            **COMMON_PARAMS,
-            'TMJB3031': 'B1慢-捕跟工作状态',
-            'TMJB3079': 'B1慢-捕跟伺服实时方位轴角',
-            'TMJB3080': 'B1慢-捕跟伺服实时俯仰轴角',
-            'TMJB3097': 'B1慢-角误差耦合器能量值',
-            'TMJB3101': 'B1慢-角误差耦合探测增益',
-            'TMJB3142': 'B1慢-耦合误差X',
-            'TMJB3145': 'B1慢-耦合误差Y',
-            'TMJB3212': 'B1慢-捕跟伺服理论方位角',
-            'TMJB3213': 'B1慢-捕跟伺服理论俯仰角',
-            'TMJB3216': 'B1慢-当前太阳角',
-            'TMJB3236': 'B1慢-热控通道02反馈温度值_望远镜筒',
-            'TMJB3243': 'B1慢-热控通道09反馈温度值_库德镜3(℃)',
-            'TMJB3244': 'B1慢-热控通道10反馈温度值_后光路1A',
-            'TMJB3245': 'B1慢-热控通道11反馈温度值_后光路1B',
-            'TMJB3246': 'B1慢-热控通道12反馈温度值_后光路2A',
-            'TMJB3247': 'B1慢-热控通道13反馈温度值_后光路2B',
-        },
-        'B2': {
-            **COMMON_PARAMS,
-            'TMJB4031': 'B2慢-捕跟工作状态',
-            'TMJB4079': 'B2慢-捕跟伺服实时方位轴角',
-            'TMJB4080': 'B2慢-捕跟伺服实时俯仰轴角',
-            'TMJB4097': 'B2慢-角误差耦合器能量值',
-            'TMJB4101': 'B2慢-角误差耦合探测增益',
-            'TMJB4142': 'B2慢-耦合误差X',
-            'TMJB4145': 'B2慢-耦合误差Y',
-            'TMJB4212': 'B2慢-捕跟伺服理论方位角',
-            'TMJB4213': 'B2慢-捕跟伺服理论俯仰角',
-            'TMJB4216': 'B2慢-当前太阳角',
-            'TMJB4236': 'B2慢-热控通道02反馈温度值_望远镜筒',
-            'TMJB4243': 'B2慢-热控通道09反馈温度值_库德镜3-离棱镜最近(℃)',
-            'TMJB4244': 'B2慢-热控通道10反馈温度值_后光路1A',
-            'TMJB4245': 'B2慢-热控通道11反馈温度值_后光路1B',
-            'TMJB4246': 'B2慢-热控通道12反馈温度值_后光路2A',
-            'TMJB4247': 'B2慢-热控通道13反馈温度值_后光路2B',
-        },
-    }
+    # 根据 TERMINALS 配置动态生成 TERMINAL_PARAMS
+    TERMINAL_PARAMS = {}
+    for terminal, config in TERMINALS.items():
+        package_code = config['package']
+        state_param = config['state_param']
+        state_name = config['state_name']
+
+        # 动态生成参数映射，确保每个终端的参数映射精确匹配
+        if 'A1-1' in terminal:
+            if 'A1慢3' in state_name:  # jg02组 A1-1
+                params = {
+                    **COMMON_PARAMS,
+                    'TMJA3051': 'A1慢3-通信1 锁频信号幅值',
+                    'TMJA3052': 'A1慢3-通信1 频差',
+                    state_param: state_name,
+                    'TMJA3147': 'A1慢3-1-方位电机当前位置',
+                    'TMJA3148': 'A1慢3-1-方位电机目标位置',
+                    'TMJA3149': 'A1慢3-1-俯仰电机当前位置',
+                    'TMJA3150': 'A1慢3-1-俯仰电机目标位置',
+                    'TMJA3185': 'A1慢3-1-后光学基板温度(主)',
+                    'TMJA3186': 'A1慢3-1-后光学基板温度(备)',
+                    'TMJA3188': 'A1慢3-1-主镜筒温度(主)',
+                    'TMJA3189': 'A1慢3-1-主镜筒温度(备)',
+                    'TMJA3195': 'A1慢3-1-框架温度(℃)',
+                    'TMJA3219': 'A1慢3-1-相机光斑质心X',
+                    'TMJA3220': 'A1慢3-1-相机光斑质心Y',
+                    'TMJA3221': 'A1慢3-1-相机光斑幅值均值',
+                    'TMJA3235': 'A1慢3-1-跟踪点X',
+                    'TMJA3236': 'A1慢3-1-跟踪点Y',
+                }
+            else:  # jg01组 A1-1
+                params = {
+                    **COMMON_PARAMS,
+                    'TMJA3051': 'A3慢-通信1 锁频信号幅值',
+                    'TMJA3052': 'A3慢-通信1 频差',
+                    state_param: state_name,
+                    'TMJA3147': 'A3慢-1-方位电机当前位置',
+                    'TMJA3148': 'A3慢-1-方位电机目标位置',
+                    'TMJA3149': 'A3慢-1-俯仰电机当前位置',
+                    'TMJA3150': 'A3慢-1-俯仰电机目标位置',
+                    'TMJA3185': 'A3慢-1-后光学基板温度(主)',
+                    'TMJA3186': 'A3慢-1-后光学基板温度(备)',
+                    'TMJA3188': 'A3慢-1-主镜筒温度(主)',
+                    'TMJA3189': 'A3慢-1-主镜筒温度(备)',
+                    'TMJA3195': 'A3慢-1-框架温度(℃)',
+                    'TMJA3219': 'A3慢-1-相机光斑质心X',
+                    'TMJA3220': 'A3慢-1-相机光斑质心Y',
+                    'TMJA3221': 'A3慢-1-相机光斑幅值均值',
+                    'TMJA3235': 'A3慢-1-跟踪点X',
+                    'TMJA3236': 'A3慢-1-跟踪点Y',
+                }
+        elif 'A1-2' in terminal:
+            if 'A1慢3' in state_name:  # jg02组 A1-2
+                params = {
+                    **COMMON_PARAMS,
+                    'TMJA3051': 'A1慢3-通信1 锁频信号幅值',
+                    'TMJA3052': 'A1慢3-通信1 频差',
+                    state_param: state_name,
+                    'TMJA3271': 'A1慢3-2-方位电机当前位置',
+                    'TMJA3272': 'A1慢3-2-方位电机目标位置',
+                    'TMJA3273': 'A1慢3-2-俯仰电机当前位置',
+                    'TMJA3274': 'A1慢3-2-俯仰电机目标位置',
+                    'TMJA3309': 'A1慢3-2-后光学基板温度(主)',
+                    'TMJA3310': 'A1慢3-2-后光学基板温度(备)',
+                    'TMJA3312': 'A1慢3-2-主镜筒温度(主)',
+                    'TMJA3313': 'A1慢3-2-主镜筒温度(备)',
+                    'TMJA3319': 'A1慢3-2-框架温度(℃)',
+                    'TMJA3343': 'A1慢3-2-相机光斑质心X',
+                    'TMJA3344': 'A1慢3-2-相机光斑质心Y',
+                    'TMJA3345': 'A1慢3-2-相机光斑幅值均值',
+                    'TMJA3359': 'A1慢3-2-跟踪点X',
+                    'TMJA3360': 'A1慢3-2-跟踪点Y',
+                }
+            else:  # jg01组 A1-2
+                params = {
+                    **COMMON_PARAMS,
+                    'TMJA3051': 'A3慢-通信1 锁频信号幅值',
+                    'TMJA3052': 'A3慢-通信1 频差',
+                    state_param: state_name,
+                    'TMJA3271': 'A3慢-2-方位电机当前位置',
+                    'TMJA3272': 'A3慢-2-方位电机目标位置',
+                    'TMJA3273': 'A3慢-2-俯仰电机当前位置',
+                    'TMJA3274': 'A3慢-2-俯仰电机目标位置',
+                    'TMJA3309': 'A3慢-2-后光学基板温度(主)',
+                    'TMJA3310': 'A3慢-2-后光学基板温度(备)',
+                    'TMJA3312': 'A3慢-2-主镜筒温度(主)',
+                    'TMJA3313': 'A3慢-2-主镜筒温度(备)',
+                    'TMJA3319': 'A3慢-2-框架温度(℃)',
+                    'TMJA3343': 'A3慢-2-相机光斑质心X',
+                    'TMJA3344': 'A3慢-2-相机光斑质心Y',
+                    'TMJA3345': 'A3慢-2-相机光斑幅值均值',
+                    'TMJA3359': 'A3慢-2-跟踪点X',
+                    'TMJA3360': 'A3慢-2-跟踪点Y',
+                }
+        elif 'A2-1' in terminal:  # jg02组激光A2终端 A2-1
+            params = {
+                **COMMON_PARAMS,
+                'TMJA8051': 'A2慢3-通信1 锁频信号幅值',
+                'TMJA8052': 'A2慢3-通信1 频差',
+                state_param: state_name,
+                'TMJA8147': 'A2慢3-1-方位电机当前位置',
+                'TMJA8148': 'A2慢3-1-方位电机目标位置',
+                'TMJA8149': 'A2慢3-1-俯仰电机当前位置',
+                'TMJA8150': 'A2慢3-1-俯仰电机目标位置',
+                'TMJA8185': 'A2慢3-1-后光学基板温度(主)',
+                'TMJA8186': 'A2慢3-1-后光学基板温度(备)',
+                'TMJA8188': 'A2慢3-1-主镜筒温度(主)',
+                'TMJA8189': 'A2慢3-1-主镜筒温度(备)',
+                'TMJA8195': 'A2慢3-1-框架温度(℃)',
+                'TMJA8219': 'A2慢3-1-相机光斑质心X',
+                'TMJA8220': 'A2慢3-1-相机光斑质心Y',
+                'TMJA8221': 'A2慢3-1-相机光斑幅值均值',
+                'TMJA8235': 'A2慢3-1-跟踪点X',
+                'TMJA8236': 'A2慢3-1-跟踪点Y',
+            }
+        elif 'A2-2' in terminal:  # jg02组激光A2终端 A2-2
+            params = {
+                **COMMON_PARAMS,
+                'TMJA8051': 'A2慢3-通信1 锁频信号幅值',
+                'TMJA8052': 'A2慢3-通信1 频差',
+                state_param: state_name,
+                'TMJA8271': 'A2慢3-2-方位电机当前位置',
+                'TMJA8272': 'A2慢3-2-方位电机目标位置',
+                'TMJA8273': 'A2慢3-2-俯仰电机当前位置',
+                'TMJA8274': 'A2慢3-2-俯仰电机目标位置',
+                'TMJA8309': 'A2慢3-2-后光学基板温度(主)',
+                'TMJA8310': 'A2慢3-2-后光学基板温度(备)',
+                'TMJA8312': 'A2慢3-2-主镜筒温度(主)',
+                'TMJA8313': 'A2慢3-2-主镜筒温度(备)',
+                'TMJA8319': 'A2慢3-2-框架温度(℃)',
+                'TMJA8343': 'A2慢3-2-相机光斑质心X',
+                'TMJA8344': 'A2慢3-2-相机光斑质心Y',
+                'TMJA8345': 'A2慢3-2-相机光斑幅值均值',
+                'TMJA8359': 'A2慢3-2-跟踪点X',
+                'TMJA8360': 'A2慢3-2-跟踪点Y',
+            }
+        else:  # B1/B2终端（jg01组）
+            if 'B1' in terminal:
+                params = {
+                    **COMMON_PARAMS,
+                    state_param: state_name,
+                    'TMJB3079': 'B1慢-捕跟伺服实时方位轴角',
+                    'TMJB3080': 'B1慢-捕跟伺服实时俯仰轴角',
+                    'TMJB3097': 'B1慢-角误差耦合器能量值',
+                    'TMJB3101': 'B1慢-角误差耦合探测增益',
+                    'TMJB3142': 'B1慢-耦合误差X',
+                    'TMJB3145': 'B1慢-耦合误差Y',
+                    'TMJB3212': 'B1慢-捕跟伺服理论方位角',
+                    'TMJB3213': 'B1慢-捕跟伺服理论俯仰角',
+                    'TMJB3216': 'B1慢-当前太阳角',
+                    'TMJB3236': 'B1慢-热控通道02反馈温度值_望远镜筒',
+                    'TMJB3243': 'B1慢-热控通道09反馈温度值_库德镜3(℃)',
+                    'TMJB3244': 'B1慢-热控通道10反馈温度值_后光路1A',
+                    'TMJB3245': 'B1慢-热控通道11反馈温度值_后光路1B',
+                    'TMJB3246': 'B1慢-热控通道12反馈温度值_后光路2A',
+                    'TMJB3247': 'B1慢-热控通道13反馈温度值_后光路2B',
+                }
+            else:  # B2终端
+                params = {
+                    **COMMON_PARAMS,
+                    state_param: state_name,
+                    'TMJB4079': 'B2慢-捕跟伺服实时方位轴角',
+                    'TMJB4080': 'B2慢-捕跟伺服实时俯仰轴角',
+                    'TMJB4097': 'B2慢-角误差耦合器能量值',
+                    'TMJB4101': 'B2慢-角误差耦合探测增益',
+                    'TMJB4142': 'B2慢-耦合误差X',
+                    'TMJB4145': 'B2慢-耦合误差Y',
+                    'TMJB4212': 'B2慢-捕跟伺服理论方位角',
+                    'TMJB4213': 'B2慢-捕跟伺服理论俯仰角',
+                    'TMJB4216': 'B2慢-当前太阳角',
+                    'TMJB4236': 'B2慢-热控通道02反馈温度值_望远镜筒',
+                    'TMJB4243': 'B2慢-热控通道09反馈温度值_库德镜3-离棱镜最近(℃)',
+                    'TMJB4244': 'B2慢-热控通道10反馈温度值_后光路1A',
+                    'TMJB4245': 'B2慢-热控通道11反馈温度值_后光路1B',
+                    'TMJB4246': 'B2慢-热控通道12反馈温度值_后光路2A',
+                    'TMJB4247': 'B2慢-热控通道13反馈温度值_后光路2B',
+                }
+
+        TERMINAL_PARAMS[terminal] = params
 
     # 提取公共参数
     temp_df = None
@@ -443,14 +510,14 @@ def step2_state_filter(step1_data, base_dir):
         print(f"{terminal}: 原始 {len(df_aligned)} → 有效 {valid_count} 行（总 {len(df_processed)} 行）→ {processed_file.name}")
 
     # 生成状态筛选报告
-    generate_state_filter_report(step1_data, terminal_data, base_dir)
+    generate_state_filter_report(step1_data, terminal_data, base_dir, TERMINALS)
 
     # 生成有效数据分布图表
-    generate_valid_distribution_plots(step1_data, terminal_data, base_dir)
+    generate_valid_distribution_plots(step1_data, terminal_data, base_dir, TERMINALS)
 
     return terminal_data
 
-def step3_error_calc(terminal_data, base_dir):
+def step3_error_calc(terminal_data, base_dir, TERMINALS):
     """Step 3: 指向误差计算（从 Step 2 处理后文件读取，使用插值好的数据，保持 1Hz 采样率一致）"""
     print("\n" + "="*60)
     print("Step 3: 指向误差计算")
@@ -459,28 +526,144 @@ def step3_error_calc(terminal_data, base_dir):
     all_errors = {}
     stats_report = []
 
+    # 我们需要找到参数名称，直接从 terminal_data 中查找
     for terminal, config in TERMINALS.items():
-        # 从 Step 2 处理后文件读取完整数据（包含完整 1Hz 时间轴和插值好的参数）
-        processed_file = base_dir / 'step2-state-filter' / 'results' / f'{terminal}_processed.csv'
-        if not processed_file.exists():
-            print(f"{terminal}: 未找到处理后文件，跳过")
+        if terminal not in terminal_data:
+            print(f"{terminal}: 未找到处理后数据，跳过")
             continue
 
-        df = pd.read_csv(processed_file, parse_dates=[0], index_col=0)
-        config = TERMINALS[terminal]
+        df = terminal_data[terminal]
         error_params = config['error_params']
 
-        # 获取参数中文名称
-        A_t_name = get_param_name(error_params['A_t'])
-        A_r_name = get_param_name(error_params['A_r'])
-        E_t_name = get_param_name(error_params['E_t'])
-        E_r_name = get_param_name(error_params['E_r'])
+        # 从 DataFrame 的列中查找匹配的参数名称
+        def find_column(df, param_code, param_type='', terminal_name=''):
+            """
+            根据参数代号查找 DataFrame 中的列名
+
+            参数:
+                df: DataFrame
+                param_code: 参数代码
+                param_type: 参数类型 ('A_t', 'A_r', 'E_t', 'E_r')
+                terminal_name: 终端名称，用于更精确的匹配
+            """
+            # 首先，尝试精确匹配参数代码
+            for col in df.columns:
+                if param_code in col or col in param_code:
+                    return col
+
+            # 根据终端类型确定参数前缀模式
+            terminal_pattern = None
+            if terminal_name:
+                if 'A1-1' in terminal_name:
+                    terminal_pattern = '-1-'  # A1-1终端使用"-1-"参数
+                elif 'A1-2' in terminal_name:
+                    terminal_pattern = '-2-'  # A1-2终端使用"-2-"参数
+                elif 'A2-1' in terminal_name:
+                    terminal_pattern = '-1-'  # A2-1终端使用"-1-"参数
+                elif 'A2-2' in terminal_name:
+                    terminal_pattern = '-2-'  # A2-2终端使用"-2-"参数
+
+            # 如果有参数类型提示，使用类型提示进行匹配
+            if param_type:
+                # 首先根据终端模式筛选
+                candidates_by_terminal = []
+                if terminal_pattern:
+                    for col in df.columns:
+                        if terminal_pattern in col:
+                            candidates_by_terminal.append(col)
+                else:
+                    candidates_by_terminal = list(df.columns)
+
+                if param_type == 'A_t':
+                    # 方位目标位置：优先匹配包含'目标'的列，然后再考虑param_code后缀匹配
+                    # 这样可以避免匹配到错误的'当前'位置列
+                    for col in candidates_by_terminal:
+                        if '方位' in col and '目标' in col:
+                            return col
+                    for col in candidates_by_terminal:
+                        if '方位' in col and (param_code.endswith('48') or param_code.endswith('12')):
+                            return col
+                    # 备用：如果没找到，放宽条件
+                    for col in candidates_by_terminal:
+                        if '方位' in col:
+                            return col
+                elif param_type == 'A_r':
+                    # 方位当前位置：优先匹配包含'当前'的列，然后再考虑param_code后缀匹配
+                    for col in candidates_by_terminal:
+                        if '方位' in col and '当前' in col:
+                            return col
+                    for col in candidates_by_terminal:
+                        if '方位' in col and (param_code.endswith('47') or param_code.endswith('79')):
+                            return col
+                    # 备用：如果没找到，放宽条件
+                    for col in candidates_by_terminal:
+                        if '方位' in col:
+                            return col
+                elif param_type == 'E_t':
+                    # 俯仰目标位置：优先匹配包含'目标'的列，然后再考虑param_code后缀匹配
+                    for col in candidates_by_terminal:
+                        if '俯仰' in col and '目标' in col:
+                            return col
+                    for col in candidates_by_terminal:
+                        if '俯仰' in col and (param_code.endswith('50') or param_code.endswith('13')):
+                            return col
+                    # 备用：如果没找到，放宽条件
+                    for col in candidates_by_terminal:
+                        if '俯仰' in col:
+                            return col
+                elif param_type == 'E_r':
+                    # 俯仰当前位置：优先匹配包含'当前'的列，然后再考虑param_code后缀匹配
+                    for col in candidates_by_terminal:
+                        if '俯仰' in col and '当前' in col:
+                            return col
+                    for col in candidates_by_terminal:
+                        if '俯仰' in col and (param_code.endswith('49') or param_code.endswith('80')):
+                            return col
+                    # 备用：如果没找到，放宽条件
+                    for col in candidates_by_terminal:
+                        if '俯仰' in col:
+                            return col
+
+            # 备用方案：通用模糊匹配
+            for col in df.columns:
+                if '方位' in col and (param_type in ['A_t', 'A_r'] or 'A' in param_code):
+                    # 如果有终端模式，优先匹配
+                    if terminal_pattern:
+                        if terminal_pattern in col:
+                            return col
+                    else:
+                        return col
+            for col in df.columns:
+                if '俯仰' in col and (param_type in ['E_t', 'E_r'] or 'E' in param_code):
+                    if terminal_pattern:
+                        if terminal_pattern in col:
+                            return col
+                    else:
+                        return col
+
+            # 如果都找不到，打印警告并返回None
+            print(f"警告: 未找到参数 {param_code} (类型: {param_type}, 终端: {terminal_name}) 在 DataFrame 的列中")
+            print(f"可用列名: {list(df.columns)}")
+
+            return None
+
+        # 查找需要的参数列
+        A_t_col = find_column(df, error_params['A_t'], 'A_t', terminal)
+        A_r_col = find_column(df, error_params['A_r'], 'A_r', terminal)
+        E_t_col = find_column(df, error_params['E_t'], 'E_t', terminal)
+        E_r_col = find_column(df, error_params['E_r'], 'E_r', terminal)
+
+        if not all([A_t_col, A_r_col, E_t_col, E_r_col]):
+            print(f"{terminal}: 未找到必要的误差计算参数列，跳过")
+            print(f"  尝试查找: A_t={error_params['A_t']}, A_r={error_params['A_r']}")
+            print(f"  可用列: {list(df.columns[:10])}...")
+            continue
 
         # 获取 Step 2 中已经插值好的参数值
-        A_t = df[A_t_name]
-        A_r = df[A_r_name]
-        E_t = df[E_t_name]
-        E_r = df[E_r_name]
+        A_t = df[A_t_col]
+        A_r = df[A_r_col]
+        E_t = df[E_t_col]
+        E_r = df[E_r_col]
 
         # 在完整时间轴上计算误差（只要参数有值就计算，使用 Step 2 插值好的数据）
         delta_A = (A_t - A_r + 180) % 360 - 180  # 方位角环绕处理
@@ -638,14 +821,14 @@ def plot_error_histograms(df, terminal, base_dir):
     plt.close()
 
 
-def generate_preprocessing_report(step1_data, base_dir):
+def generate_preprocessing_report(step1_data, base_dir, star_name='31star'):
     """生成 Step 1 预处理报告"""
     report_file = base_dir / 'step1-preprocessing' / 'reports' / 'preprocessing_report.md'
 
     report = []
     report.append("# 数据预处理报告\n")
     report.append(f"**生成时间**: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-    report.append(f"**处理数据**: 31star 原始遥测数据\n")
+    report.append(f"**处理数据**: {star_name} 原始遥测数据\n")
     report.append(f"**处理包数量**: {len(step1_data)}\n")
     report.append("\n")
     report.append("## 各包详细信息\n")
@@ -667,7 +850,7 @@ def generate_preprocessing_report(step1_data, base_dir):
     print(f"预处理报告 → {report_file.name}")
 
 
-def generate_timeline_plots(step1_data, base_dir):
+def generate_timeline_plots(step1_data, base_dir, star_name='31star'):
     """生成 Step 1 时间轴有效性图"""
     # 定义需要避开的时间类参数
     TIME_PARAM_KEYWORDS = ['时间', '秒', '毫秒', '微秒']
@@ -695,7 +878,7 @@ def generate_timeline_plots(step1_data, base_dir):
             else:
                 continue
 
-        plot_file = base_dir / 'step1-preprocessing' / 'plots' / f'31star_pkg_{pkg_code}_timeline.png'
+        plot_file = base_dir / 'step1-preprocessing' / 'plots' / f'{star_name}_pkg_{pkg_code}_timeline.png'
 
         # 绘图
         fig, ax1 = plt.subplots(figsize=(16, 6))
@@ -887,14 +1070,13 @@ def generate_summary_gantt(step1_data, base_dir):
     print(f"汇总甘特图 → summary_packages_gantt.png")
 
 
-def generate_state_filter_report(step1_data, terminal_data, base_dir):
+def generate_state_filter_report(step1_data, terminal_data, base_dir, TERMINALS):
     """生成 Step 2 状态筛选报告"""
     report_file = base_dir / 'step2-state-filter' / 'reports' / 'state_filter_report.md'
 
     report = []
     report.append("# 状态筛选与数据处理报告\n")
     report.append(f"**生成时间**: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-    report.append(f"**处理数据**: 31star 遥测数据\n")
     report.append(f"**有效终端数量**: {len(terminal_data)}\n")
     report.append("\n")
     report.append("## 各终端详细信息\n")
@@ -930,7 +1112,7 @@ def generate_state_filter_report(step1_data, terminal_data, base_dir):
     print(f"状态筛选报告 → state_filter_report.md")
 
 
-def generate_valid_distribution_plots(step1_data, terminal_data, base_dir):
+def generate_valid_distribution_plots(step1_data, terminal_data, base_dir, TERMINALS):
     """生成 Step 2 有效数据分布图表（甘特图效果）"""
     for terminal, config in TERMINALS.items():
         pkg_code = config['package']
@@ -1049,27 +1231,56 @@ def generate_valid_distribution_plots(step1_data, terminal_data, base_dir):
             plt.close()
             print(f"有效数据分布图 → {terminal}_valid_distribution.png")
 
-def main():
-    csv_file = Path(__file__).parent.parent / 'ori-data' / '31star' / 'CSCN-A0031_TelPlatformParsed_20260312063411_1.csv'
+def main(group='jg01', star_name='31star'):
+    """
+    主函数
 
-    if not csv_file.exists():
-        print(f"文件不存在: {csv_file}")
+    参数:
+        group: 卫星分组，'jg01' 或 'jg02'
+        star_name: 卫星名称，如 '31star'、'32star'、'61star'
+    """
+    # 动态加载配置
+    PARAM_MAPPING, get_param_name, TERMINALS = load_config(group)
+
+    # 查找原始数据文件
+    ori_data_dir = Path(__file__).parent.parent / 'ori-data' / star_name
+    if not ori_data_dir.exists():
+        print(f"目录不存在: {ori_data_dir}")
         sys.exit(1)
 
-    base_dir = cleanup_and_create_dirs()
+    # 查找 CSV 文件
+    csv_files = list(ori_data_dir.glob('*.csv'))
+    if not csv_files:
+        print(f"未找到 CSV 文件在: {ori_data_dir}")
+        sys.exit(1)
+
+    csv_file = csv_files[0]
+    print(f"使用原始数据文件: {csv_file}")
+
+    base_dir = cleanup_and_create_dirs(star_name)
 
     # Step 1: 数据预处理
-    step1_data = step1_preprocessing(csv_file, base_dir)
+    step1_data = step1_preprocessing(csv_file, base_dir, PARAM_MAPPING, get_param_name, star_name)
 
     # Step 2: 状态筛选
-    terminal_data = step2_state_filter(step1_data, base_dir)
+    terminal_data = step2_state_filter(step1_data, base_dir, TERMINALS)
 
     # Step 3: 误差计算
-    step3_error_calc(terminal_data, base_dir)
+    step3_error_calc(terminal_data, base_dir, TERMINALS)
 
     print("\n" + "="*60)
-    print("验证完成! 输出目录:", base_dir)
+    print(f"验证完成! 分组: {group}, 卫星: {star_name}")
+    print("输出目录:", base_dir)
     print("="*60)
 
 if __name__ == '__main__':
-    main()
+    # 简单命令行参数解析
+    group = 'jg01'
+    star_name = '31star'
+
+    if len(sys.argv) > 1:
+        group = sys.argv[1]
+    if len(sys.argv) > 2:
+        star_name = sys.argv[2]
+
+    main(group, star_name)
