@@ -2,11 +2,50 @@
 
 ## 版本历史
 - v1.0 - 初始版本
-- v1.1 (2026-03-14) - 更新多星数据处理流程，增加jg02组卫星支持，增加链路分析功能
+- v1.1 (2026-03-14) - 更新多星数据处理流程，增加jg02组卫星支持
+- v1.2 (2026-03-14) - 删除链路配对分析章节，优化终端配置
+- v1.3 (2026-03-15) - 增加温度与误差关系分析功能
+
+
+## 卫星在轨链路拓扑图
+对于A27~A36卫星，每颗卫星有四个终端：01为B1， 02为A1-2， 03为B2， 04为A1-1
+对于A57~66卫星，每个卫星的四个终端对应如下：01为A1-1， 02为A2-1， 03为A2-2，04为A1-2
+
+卫星实际在轨的链路拓扑为：
+A2701-A2803
+A3401-A3503
+A3601-A2703
+A2804-A2902
+A2904-A3004
+A3002-A3102
+A3104-A3204
+A3304-A3402
+A3504-A3602
+A3302-A3201
+A2702-A0703
+A2802-A0803
+A3502-A1503
+A5802-A5704
+A5902-A5804
+A6002-A5904
+A6102-A6004
+A5803-A2801
+A5903-A2901
+A6003-A3001
+A6103-A3101
+A5703-A2704
+
 
 ## 一、项目概述
 
 本项目用于处理卫星遥测数据并计算激光通信终端的指向误差，支持多星分组处理、链路配对分析、温度与误差关系分析等功能。
+
+### 核心分析目标
+- **激光指向误差计算**：计算各终端的方位误差、俯仰误差和综合指向误差
+- **温度与误差关系分析**：分析指向误差与在轨温度的关系，包括：
+  - 与轨道周期有关的温度（前光路、后光路温度）
+  - 与载荷温度有关的温度（DBF、L、Ka载荷温度平均值）
+- **链路分析**：分析32-31和31-61两条链路的误差关系
 
 ## 二、卫星分组与配置
 
@@ -26,13 +65,21 @@ STAR_GROUP = {
 
 ### 2.3 终端配置
 
-#### jg01组终端配置
+#### jg01组终端配置（通用）
 | 终端 | 包代码 | 状态参数 | 状态名称 |
 |------|--------|---------|---------|
 | B1 | 136 | TMJB3031 | B1慢-捕跟工作状态 |
 | B2 | 138 | TMJB4031 | B2慢-捕跟工作状态 |
 | A1-1 | 134 | TMJA3115 | A3慢-1-激光终端状态 |
 | A1-2 | 134 | TMJA3239 | A3慢-2-激光终端状态 |
+
+#### jg01组32star特殊配置
+| 终端 | 包代码 | 状态参数 | 状态名称 |
+|------|--------|---------|---------|
+| A1-1 | 13B | TMJA3115 | A3慢-1-激光终端状态 |
+| A1-2 | 13B | TMJA3239 | A3慢-2-激光终端状态 |
+
+**重要说明**：32star属于jg01组，但激光A终端使用包代码13B，而不是通用的134。
 
 #### jg02组终端配置
 | 终端 | 包代码 | 状态参数 | 状态名称 |
@@ -60,10 +107,6 @@ STAR_GROUP = {
 [Step 3] 指向误差计算：delta_A/delta_E/theta_error → 统计分析 → 可视化
     ↓
 error_{terminal}.csv, error_statistics.md, *.png
-    ↓
-[Step 4] 链路分析：链路配对 → 时间对齐 → 误差与温度关系分析 → 报告生成
-    ↓
-link_analysis_report.md, 链路分析可视化
 ```
 
 ### 3.2 Step 1: 数据预处理
@@ -165,36 +208,6 @@ theta_error = sqrt((delta_A * cos(radians(E_r)))**2 + delta_E**2)
 - `output/{star_name}/step3-error-calc/plots/comparison_azimuth_boxplot.png`
 - `output/{star_name}/step3-error-calc/plots/comparison_elevation_boxplot.png`
 
-### 3.5 Step 4: 链路配对分析
-
-#### 3.5.1 链路配对配置
-```python
-LINK_PAIRS = [
-    ('32star', 'B1', '31star', 'A1-1'),  # 32-31链路
-    ('31star', 'A1-1', '61star', 'A2-1'),  # 31-61链路
-]
-```
-
-#### 3.5.2 处理步骤
-1. **加载各星处理结果**：读取31star、32star、61star的Step 3误差数据
-2. **自动查找可用终端**：检查各星可用的终端
-3. **链路数据配对**：
-   - 时间对齐到公共时间轴
-   - 使用merge按时间对齐
-   - 容差：500ms
-4. **误差关系分析**：
-   - 本端误差与本端温度相关性
-   - 本端误差与对端温度相关性
-   - 对端误差与对端温度相关性
-   - 对端误差与本端温度相关性
-5. **统计分析**：Pearson相关系数、p值显著性检验
-6. **可视化生成**：散点图、时间序列对比图、热力图
-
-#### 3.5.3 输出文件
-- `output/step3-error-calc/reports/link_analysis_report.md`
-- `output/step3-error-calc/plots/link_*_scatter.png`
-- `output/step3-error-calc/plots/link_*_timeseries.png`
-- `output/step3-error-calc/plots/link_*_correlation_heatmap.png`
 
 ## 四、可配置参数
 
@@ -212,6 +225,50 @@ RESAMPLE_FREQ = '1S'           # 目标采样率（1Hz）
 VALID_STATE_VALUE = '6'        # 有效状态值
 ```
 
+## 四、温度与误差关系分析
+
+### 4.1 分析目标
+分析激光指向误差与在轨温度的关系，温度来源分为两方面：
+- **与轨道周期有关**：来源于太阳的热量，影响激光终端前后光路的温度
+- **与载荷温度有关**：取 DBF、L、Ka载荷温度遥测的平均值
+
+### 4.2 分析方法
+1. **Pearson相关性分析**：计算温度与误差的线性相关系数
+2. **滞后相关性分析**：分析温度变化对误差的延迟影响（最佳滞后时间）
+3. **温度变化率分析**：分析dT/dt与误差的关系
+4. **频谱分析**：验证温度和误差的轨道周期特征（主周期约4.27分钟）
+5. **温度梯度分析**：分析前光路-后光路温度差与误差的关系
+6. **多元线性回归**：同时考虑多温度因素的组合影响
+
+### 4.3 温度参数配置
+
+#### jg01组温度参数
+| 终端 | 前光路温度 | 后光路温度 | 载荷温度（平均值） |
+|------|----------|----------|------------------|
+| A1-1 | TMJA3188  | TMJA3185  | DBF+L+Ka平均值   |
+| A1-2 | TMJA3312  | TMJA3309  | DBF+L+Ka平均值   |
+| B1   | TMJB3236  | TMJB3244-3247平均值 | DBF+L+Ka平均值 |
+| B2   | TMJB4236  | TMJB4244-4247平均值 | DBF+L+Ka平均值 |
+
+#### jg02组温度参数
+| 终端 | 前光路温度 | 后光路温度 | 载荷温度（平均值） |
+|------|----------|----------|------------------|
+| A1-1 | TMJA3188  | TMJA3185  | DBF+L+Ka平均值   |
+| A1-2 | TMJA3312  | TMJA3309  | DBF+L+Ka平均值   |
+| A2-1 | TMJA8188  | TMJA8185  | DBF+L+Ka平均值   |
+| A2-2 | TMJA8312  | TMJA8309  | DBF+L+Ka平均值   |
+
+#### 载荷温度参数
+- DBF温度：TMR137（DBF本体）、TMR138（DBF安装面1）、TMR139（DBF安装面2）
+- L射频单元温度：TMR185、TMR191、TMR192、TMR193
+- Ka接收相控阵温度：TMR200、TMR201
+
+### 4.4 输出结果
+分析结果保存于 `output/temperature_analysis/` 目录：
+- `reports/`：综合分析报告和各终端报告
+- `data/`：各终端的分析数据CSV文件
+- `plots/`：增强分析图表（温度变化率、频谱分析、温度梯度等）
+
 ## 五、数据质量说明
 
 ### 5.1 32star数据特征
@@ -225,14 +282,17 @@ VALID_STATE_VALUE = '6'        # 有效状态值
 
 这是32star原始遥测数据的固有特征，与31star和61star的数据特征有所不同。
 
-### 5.2 数据量统计
-- 32star：13B包31万行，136/32A/138包各14万行
-- 31star：数据量适中
-- 61star：数据量适中
+
 
 ## 六、执行命令
 
 ### 6.1 完整流程处理单星
+
+### 6.2 温度与误差关系分析
+```bash
+# 运行温度与误差关系分析（需要先完成三阶段处理）
+python src/temperature_analysis.py
+```
 ```bash
 # 处理jg01组卫星（如31star、32star）
 python src/verify_complete.py jg01 31star
@@ -242,11 +302,53 @@ python src/verify_complete.py jg01 32star
 python src/verify_complete.py jg02 61star
 ```
 
-### 6.2 链路配对分析
-```bash
-# 运行链路分析模块
-python src/link_analysis.py
+
+## 七、关键修复说明
+
+### 7.1 find_column 函数参数匹配修复
+
+**问题描述**：
+- A1-1和A1-2终端的参数列名相似，导致find_column函数无法正确区分
+- 出现误差值全部为0的情况，原因是A_t（目标位置）和A_r（当前位置）匹配到了同一列
+
+**根本原因**：
+- 同一数据包（如134包）中包含多个终端的参数
+- 参数代码后缀相似（如TMJA3147和TMJA3271都以'47'结尾）
+- 原始匹配逻辑仅依赖参数代码后缀匹配，容易混淆
+
+**修复方案**：
+修改了find_column函数的参数匹配逻辑，采用多级匹配策略：
+
+1. **精确匹配**：首先尝试精确匹配参数代码
+2. **关键字优先匹配**：优先匹配包含"目标"或"当前"关键字的列名
+3. **终端名称匹配**：优先匹配包含终端名称关键字的列
+4. **后缀匹配**：最后考虑参数代码后缀匹配
+
+**关键代码逻辑**：
+```python
+def find_column(df, param_code, param_type='', terminal_name=''):
+    # 1. 精确匹配
+    for col in df.columns:
+        if param_code in col or col in param_code:
+            return col
+
+    # 2. 关键字优先匹配
+    if param_type == 'A_t':
+        # 方位目标位置：优先匹配包含'目标'的列
+        for col in candidates_by_terminal:
+            if '方位' in col and '目标' in col:
+                return col
+    elif param_type == 'A_r':
+        # 方位当前位置：优先匹配包含'当前'的列
+        for col in candidates_by_terminal:
+            if '方位' in col and '当前' in col:
+                return col
 ```
+
+**验证结果**：
+- 修复后A1-1和A1-2终端的误差计算正常
+- delta_A、delta_E、theta_error不再全部为0
+- 参数匹配正确率显著提高
 
 ## 七、输出目录结构
 
@@ -258,10 +360,8 @@ python src/link_analysis.py
 │   └── 61star/
 ├── src/                       # 处理过程代码
 │   ├── config/
-│   │   ├── satellite_groups.py    # 卫星分组配置
-│   │   └── link_topology.py       # 链路拓扑配置
+│   │   └── satellite_groups.py    # 卫星分组配置
 │   ├── verify_complete.py         # 完整三阶段处理流程
-│   ├── link_analysis.py           # 链路分析模块
 │   └── ...
 ├── output/                    # 输出结果目录
 │   ├── 31star/
@@ -276,8 +376,7 @@ python src/link_analysis.py
 │   │   ├── step1-preprocessing/
 │   │   ├── step2-state-filter/
 │   │   └── step3-error-calc/
-│   └── step3-error-calc/
-│       └── reports/link_analysis_report.md
+
 ├── param_mapping_jg01.py     # jg01组参数映射
 ├── param_mapping_jg02.py     # jg02组参数映射
 └── 需求文档-new.md           # 本文档
@@ -292,5 +391,4 @@ python src/link_analysis.py
 | 有效数据量为零 | 状态参数从未等于6 | 检查状态参数唯一值和配置 |
 | 插值导致长段填充 | 连续NaN段过长 | 检查CONTINUITY_GAP_SEC配置 |
 | 公共参数全为NaN | 温度包未正确merge | 确认从packageCode=0x82或0x83提取 |
-| 链路配对数据为空 | 时间轴无重叠 | 检查各星数据的时间范围 |
 | 32star数据处理慢 | 原始数据量大 | 32star有100万行数据，处理时间较长 |

@@ -10,6 +10,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 2. 命令配置不应包含硬编码路径
 Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFolder}），避免使用具体的目录路径，确保项目在不同终端、不同文件夹下能正常工作。
 
+### 3. 禁止使用智能方法，必须采用硬编码方案
+本项目分析的是固定格式的数据，必须采用硬编码的方案。如果数据出现问题，就按照逻辑一步一步排查。**绝对不可以使用智能的方法简单完成任务**，智能方法错误率极高，**禁用！**
+
+- 参数提取：严格按照需求文档中的参数表硬编码提取，不使用智能参数匹配
+- 温度参数：硬编码具体的列名，不使用自动识别
+- 数据处理：每一步都有明确的硬编码逻辑，不使用模糊匹配或自动推断
+
 ## 项目概述
 
 这是一个**激光终端指向误差分析系统**，用于处理卫星遥测数据并计算激光通信终端的指向误差。项目包含完整的数据处理流水线，从原始遥测数据到最终误差统计分析。
@@ -18,11 +25,13 @@ Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFo
 
 ### 数据处理流程
 
-项目遵循严格的三阶段处理流水线：
+项目遵循严格的四阶段处理流水线：
 
 1. **数据预处理**：按遥测包分流、长格式转宽格式、异常值检测（物理范围+3σ统计+变化率突变）、时间轴有效性图生成（避开时间类参数）、汇总甘特图展示数据覆盖情况
 2. **状态筛选**：严格按终端参数表提取参数（包含公共参数）、时间对齐（1Hz整秒时间轴）、有效数据筛选（状态=6）、连续时间段识别、session标记、过渡期丢弃、插值处理（有效session内线性插值+状态值前向填充）、甘特图可视化数据分布（无效数据白色、有效原始数据浅色、插值数据深色）
 3. **指向误差计算**：计算方位/俯仰/综合指向误差（含方位角环绕处理）、统计分析、可视化
+4. **链路分析**：配对分析建链卫星的误差关系、温度与误差相关性分析、对端温度与本端误差关系分析
+5. **温度与误差关系分析**：分析激光指向误差与在轨温度的关系（前光路、后光路、载荷温度），包括相关性分析、滞后分析、温度变化率分析、频谱分析、温度梯度分析、多元回归分析等
 
 ### 关键技术特点
 
@@ -31,6 +40,9 @@ Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFo
 - 统一时间轴重采样（1Hz）
 - 完整的数据质量评估与报告生成
 - 严格的流程控制（不可跳步）
+- 支持jg01和jg02两组卫星的独立参数映射
+- 智能参数匹配机制（支持列名关键字优先匹配）
+- 链路配对分析（支持32-31和31-61链路分析）
 
 ## 项目结构
 
@@ -41,6 +53,10 @@ Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFo
 │   ├── 32star/            # A32星数据
 │   └── 61star/            # A61星数据
 ├── src/                   # 处理过程代码
+│   ├── config/            # 配置文件目录
+│   │   ├── satellite_groups.py    # 卫星分组配置
+│   │   ├── link_topology.py       # 链路拓扑配置
+│   │   └── temperature_params.py  # 温度参数配置
 │   ├── check_flags.py
 │   ├── debug_full_flow.py
 │   ├── debug_outlier.py
@@ -50,16 +66,22 @@ Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFo
 │   ├── debug_step1_keys.py
 │   ├── debug_step2.py
 │   ├── final_verification.py
+│   ├── link_analysis.py           # 链路分析模块
+│   ├── temperature_analysis.py    # 温度与误差关系分析
 │   ├── rerun_step2.py
 │   ├── validate_data_consistency.py
-│   ├── verify_complete.py
+│   ├── verify_complete.py        # 完整三阶段处理流程（支持jg01/jg02）
 │   ├── verify_step1.py
 │   ├── verify_step1_complete.py
 │   └── verify_step2_step3.py
 ├── output/                # 输出结果目录
 │   ├── step1-preprocessing/
 │   ├── step2-state-filter/
-│   └── step3-error-calc/
+│   ├── step3-error-calc/
+│   └── temperature_analysis/   # 温度与误差关系分析输出
+│       ├── reports/            # 分析报告
+│       ├── data/               # 数据文件
+│       └── plots/              # 图表文件
 ├── param_mapping_jg01.py   # A27~A36星参数映射
 ├── param_mapping_jg02.py   # A57~A66星参数映射
 ├── CLAUDE.md               # 项目文档
@@ -84,14 +106,34 @@ Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFo
 
 ## 激光终端配置
 
-### 终端参数对应关系
+### 终端参数对应关系（jg01组）
 
+#### 通用配置
 | 终端 | 关键状态参数 | 有效状态值 | 参数来源包 |
 |------|-------------|-----------|-----------|
 | A1-1 | TMJA3115    | 6         | 0x134     |
 | A1-2 | TMJA3239    | 6         | 0x134     |
 | B1   | TMJB3031    | 6         | 0x136     |
 | B2   | TMJB4031    | 6         | 0x138     |
+
+#### 32star特殊配置
+| 终端 | 关键状态参数 | 有效状态值 | 参数来源包 |
+|------|-------------|-----------|-----------|
+| A1-1 | TMJA3115    | 6         | 0x13B     |
+| A1-2 | TMJA3239    | 6         | 0x13B     |
+| B1   | TMJB3031    | 6         | 0x136     |
+| B2   | TMJB4031    | 6         | 0x138     |
+
+**重要说明**：32star属于jg01组，但激光A终端使用包代码0x13B（而不是通用的0x134），这是32star原始遥测数据的固有特征。
+
+### 终端参数对应关系（jg02组）
+
+| 终端 | 关键状态参数 | 有效状态值 | 参数来源包 |
+|------|-------------|-----------|-----------|
+| A1-1 | TMJA3115    | 6         | 0x13B     |
+| A2-1 | TMJA8115    | 6         | 0x13F     |
+| A2-2 | TMJA8239    | 6         | 0x13F     |
+| A1-2 | TMJA3239    | 6         | 0x13B     |
 
 ### 公共参数
 
@@ -203,17 +245,34 @@ output/
 | 有效数据量为零 | 状态参数从未等于6 | 检查状态参数唯一值和配置 |
 | 插值导致长段填充 | 连续NaN段过长 | 检查CONTINUITY_GAP_SEC配置 |
 | 公共参数全为NaN | 温度包未正确merge | 确认从packageCode=0x82或0x83提取 |
+| 误差值全部为0 | 参数匹配错误，A_t/A_r或E_t/E_r匹配到同一列 | 检查find_column函数是否正确匹配目标/当前参数 |
+| A1-1和A1-2参数混淆 | 同一包中有多个终端的参数，列名相似 | 确认find_column优先匹配包含'目标'/'当前'关键字 |
+| 链路配对数据为空 | 时间轴无重叠 | 检查各星数据的时间范围 |
+| **32star激光A终端无数据** | **包代码配置错误** | **检查32star是否使用了13B包而非134包** |
+| **温度数据为空或为0** | Step2温度包合并逻辑错误 | 检查verify_complete.py中的温度数据合并代码，确认使用reindex方法而非merge方法 |
+| **载荷温度为0** | 温度数据填充错误 | 确认代码中使用NaN填充缺失温度数据，而非0值填充 |
 
 ## 常用命令
 
 ### 完整流程运行
 
 ```bash
-# 运行完整三阶段处理流程（推荐）
-python src/verify_complete.py
+# 处理jg01组卫星（如31star、32star）
+python src/verify_complete.py jg01 31star
+python src/verify_complete.py jg01 32star
+
+# 处理jg02组卫星（如61star）
+python src/verify_complete.py jg02 61star
 
 # 仅使用已有数据验证结果
 python src/final_verification.py
+```
+
+### 链路分析
+
+```bash
+# 运行链路配对分析（需要先处理完31star、32star、61star）
+python src/link_analysis.py
 ```
 
 ### 分步验证
@@ -235,11 +294,61 @@ python src/verify_step2_step3.py
 
 | 脚本 | 功能 | 输入 | 输出 |
 |------|------|------|------|
-| `src/verify_complete.py` | 完整三阶段流水线 | ori-data/* 原始CSV | output/ 完整输出 |
+| `src/verify_complete.py` | 完整三阶段流水线（支持jg01/jg02） | ori-data/* 原始CSV | output/ 完整输出 |
 | `src/final_verification.py` | 利用已有Step1数据验证Step2+3 | output/step1-preprocessing/ | output/step3-error-calc/ |
+| `src/link_analysis.py` | 链路配对分析（32-31、31-61） | output/step3-error-calc/ | 链路分析报告和可视化 |
 | `src/verify_step1.py` | 仅Step1预处理示例 | ori-data/* | output/step1-preprocessing/ |
+| `src/config/satellite_groups.py` | 卫星分组与终端配置 | - | STAR_GROUP、TERMINALS配置 |
+| `src/config/link_topology.py` | 链路拓扑配置 | - | LINK_TOPOLOGY、FOCUSED_LINKS配置 |
 | `param_mapping_jg01.py` | A27~A36星参数映射 | - | PARAM_MAPPING字典 |
 | `param_mapping_jg02.py` | A57~A66星参数映射 | - | PARAM_MAPPING字典 |
+
+### 关键修复说明
+
+#### find_column 函数参数匹配修复
+
+**问题**：A1-1和A1-2终端的参数列名相同，导致find_column函数无法正确区分，出现误差值全部为0的情况。
+
+**修复方案**：修改了find_column函数的参数匹配逻辑，优先匹配包含"目标"或"当前"关键字的列名，然后再考虑参数代码后缀匹配。
+
+**关键代码**：
+```python
+def find_column(df, param_code, param_type='', terminal_name=''):
+    # 首先，尝试精确匹配参数代码
+    for col in df.columns:
+        if param_code in col or col in param_code:
+            return col
+
+    # 优先匹配包含"目标"或"当前"关键字的列名
+    if param_type == 'A_t':
+        # 方位目标位置：优先匹配包含'目标'的列
+        for col in candidates_by_terminal:
+            if '方位' in col and '目标' in col:
+                return col
+```
+
+#### Step2温度数据合并逻辑修复
+
+**问题**：之前在Step2状态筛选过程中，合并温度包（81和82/83）时使用了错误的时间对齐方法，导致温度数据不准确，出现载荷温度为0的问题。
+
+**修复方案**：重写了温度包合并逻辑，先创建统一的1Hz时间轴，再重采样合并package 81 (DBF) 和 package 82/83 (L/Ka) 的数据。
+
+**关键代码**：
+```python
+# 提取公共参数 - 合并包81(DBF)和包82/83(L/Ka)的数据
+temp_df = None
+if '81' in step1_data and '82' in step1_data:
+    temp_df_81 = step1_data['81'].copy()
+    temp_df_82 = step1_data['82'].copy()
+    temp_df_81.index = pd.to_datetime(temp_df_81.index)
+    temp_df_82.index = pd.to_datetime(temp_df_82.index)
+    all_times = temp_df_81.index.union(temp_df_82.index)
+    all_times = all_times.sort_values()
+    temp_df_81_resampled = temp_df_81.reindex(all_times, method='nearest', tolerance=pd.Timedelta('500ms'))
+    temp_df_82_resampled = temp_df_82.reindex(all_times, method='nearest', tolerance=pd.Timedelta('500ms'))
+    temp_df = pd.concat([temp_df_81_resampled, temp_df_82_resampled], axis=1)
+    temp_df = temp_df.loc[:, ~temp_df.columns.duplicated()]
+```
 
 ### 数据流转架构
 
@@ -250,7 +359,7 @@ python src/verify_step2_step3.py
     ↓
 {star}_pkg_{pkgCode}_wide.csv
     ↓
-[Step 2] 终端参数提取 → 时间对齐(1Hz) → 状态筛选(状态=6) → 插值
+[Step 2] 终端参数提取 → 时间对齐 → 状态筛选(状态=6) → 插值(1Hz)
     ↓
 {terminal}_raw.csv, {terminal}_processed.csv
     ↓
