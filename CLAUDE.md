@@ -25,13 +25,14 @@ Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFo
 
 ### 数据处理流程
 
-项目遵循严格的四阶段处理流水线：
+项目遵循严格的五阶段处理流水线：
 
 1. **数据预处理**：按遥测包分流、长格式转宽格式、异常值检测（物理范围+3σ统计+变化率突变）、时间轴有效性图生成（避开时间类参数）、汇总甘特图展示数据覆盖情况
 2. **状态筛选**：严格按终端参数表提取参数（包含公共参数）、时间对齐（1Hz整秒时间轴）、有效数据筛选（状态=6）、连续时间段识别、session标记、过渡期丢弃、插值处理（有效session内线性插值+状态值前向填充）、甘特图可视化数据分布（无效数据白色、有效原始数据浅色、插值数据深色）
 3. **指向误差计算**：计算方位/俯仰/综合指向误差（含方位角环绕处理）、统计分析、可视化
 4. **链路分析**：配对分析建链卫星的误差关系、温度与误差相关性分析、对端温度与本端误差关系分析
 5. **温度与误差关系分析**：分析激光指向误差与在轨温度的关系（前光路、后光路、载荷温度），包括相关性分析、滞后分析、温度变化率分析、频谱分析、温度梯度分析、多元回归分析等
+6. **载荷开关机与指向误差关系分析**：通过**状态机时间窗口温变速率检测**方法识别三个载荷（DBF、L、Ka）的开关机时间段，用不同颜色区域在时间序列图中表示。使用20秒时间窗口计算温度变化率，基于1.5倍标准差的动态阈值进行检测，最小持续时间为10分钟，目标开机时间段为20分钟。
 
 ### 关键技术特点
 
@@ -68,6 +69,7 @@ Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFo
 │   ├── final_verification.py
 │   ├── link_analysis.py           # 链路分析模块
 │   ├── temperature_analysis.py    # 温度与误差关系分析
+│   ├── payload_power_analysis.py  # 载荷开关机与指向误差关系分析
 │   ├── rerun_step2.py
 │   ├── validate_data_consistency.py
 │   ├── verify_complete.py        # 完整三阶段处理流程（支持jg01/jg02）
@@ -78,7 +80,11 @@ Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFo
 │   ├── step1-preprocessing/
 │   ├── step2-state-filter/
 │   ├── step3-error-calc/
-│   └── temperature_analysis/   # 温度与误差关系分析输出
+│   ├── temperature_analysis/   # 温度与误差关系分析输出
+│   │   ├── reports/            # 分析报告
+│   │   ├── data/               # 数据文件
+│   │   └── plots/              # 图表文件
+│   └── payload_power_analysis/ # 载荷开关机与指向误差关系分析输出
 │       ├── reports/            # 分析报告
 │       ├── data/               # 数据文件
 │       └── plots/              # 图表文件
@@ -268,6 +274,13 @@ python src/verify_complete.py jg02 61star
 python src/final_verification.py
 ```
 
+### 载荷开关机与指向误差关系分析
+
+```bash
+# 运行载荷开关机分析（需要先完成三阶段处理）
+python src/payload_power_analysis.py
+```
+
 ### 链路分析
 
 ```bash
@@ -297,6 +310,7 @@ python src/verify_step2_step3.py
 | `src/verify_complete.py` | 完整三阶段流水线（支持jg01/jg02） | ori-data/* 原始CSV | output/ 完整输出 |
 | `src/final_verification.py` | 利用已有Step1数据验证Step2+3 | output/step1-preprocessing/ | output/step3-error-calc/ |
 | `src/link_analysis.py` | 链路配对分析（32-31、31-61） | output/step3-error-calc/ | 链路分析报告和可视化 |
+| `src/payload_power_analysis.py` | 载荷开关机与指向误差关系分析 | output/step2-state-filter/、output/step3-error-calc/ | 载荷开关机分析报告和可视化 |
 | `src/verify_step1.py` | 仅Step1预处理示例 | ori-data/* | output/step1-preprocessing/ |
 | `src/config/satellite_groups.py` | 卫星分组与终端配置 | - | STAR_GROUP、TERMINALS配置 |
 | `src/config/link_topology.py` | 链路拓扑配置 | - | LINK_TOPOLOGY、FOCUSED_LINKS配置 |
