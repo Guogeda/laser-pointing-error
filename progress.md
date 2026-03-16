@@ -59,9 +59,21 @@
     - 共分析了9个终端
     - 生成了综合分析报告和可视化图表
     - 输出保存在 `output/temperature_analysis/` 目录
+  - **创建载荷开关机与指向误差关系分析模块 `src/payload_power_analysis.py`**：
+    - 分别提取DBF、L、Ka三个载荷的温度数据
+    - 通过温度变化识别三个载荷的开关机时间段
+    - 用不同颜色区域（黄色、紫色、青色）分别表示DBF、L、Ka的开机时间段
+    - 在报告中详细说明每个载荷使用的遥测量
+  - **成功运行载荷开关机分析模块**：
+    - 分析了31star的所有4个终端（B1、B2、A1-1、A1-2）
+    - 分析了32star的所有3个终端（B1、B2、A1-1）
+    - 分析了61star的2个终端（A2-1、A2-2）
+    - 共分析了9个终端
+    - 生成了综合分析报告和可视化图表
+    - 输出保存在 `output/payload_power_analysis/` 目录
   - **更新所有项目文档**：
-    - 更新需求文档-new.md
-    - 更新CLAUDE.md
+    - 更新需求文档-new.md，添加载荷开关机分析章节
+    - 更新CLAUDE.md，添加载荷开关机分析功能说明
     - 更新findings.md
     - 更新progress.md
     - 更新task_plan.md
@@ -72,6 +84,7 @@
   - C:\Users\17251\.claude\plans\radiant-wobbling-dewdrop.md（更新）
   - src/config/temperature_params.py（创建）
   - src/temperature_analysis.py（创建）
+  - src/payload_power_analysis.py（创建）
   - 需求文档-new.md（更新）
   - CLAUDE.md（更新）
 

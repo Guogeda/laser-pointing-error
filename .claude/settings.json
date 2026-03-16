@@ -1,0 +1,54 @@
+{
+  "permissions": {
+    "bash": {
+      "allowCommands": [
+        "python.*",
+        "pip.*",
+        "git.*",
+        "ls.*",
+        "cd.*",
+        "echo.*",
+        "mkdir.*",
+        "rm.*",
+        "cat.*",
+        "grep.*",
+        "find.*"
+      ],
+      "blockCommands": [
+        "rm.*-rf.*",
+        "sudo.*",
+        "shutdown.*",
+        "reboot.*"
+      ]
+    },
+    "files": {
+      "allowPatterns": [
+        "**/*.py",
+        "**/*.csv",
+        "**/*.xlsx",
+        "**/*.md",
+        "**/*.json",
+        "**/*.txt"
+      ],
+      "blockPatterns": []
+    }
+  },
+  "filesystem": {
+    "writePaths": [
+      "**/*"
+    ],
+    "readPaths": [
+      "**/*"
+    ]
+  },
+  "execution": {
+    "timeout": 300000,
+    "maxOutput": 100000
+  },
+  "commands": {
+    "git-push": {
+      "enabled": true,
+      "description": "一键提交并推送所有变更到GitHub"
+    }
+  }
+}

@@ -72,14 +72,30 @@ def cleanup_and_create_dirs(star_name=None):
 
     return base_dir
 
-def step1_preprocessing(csv_path, base_dir, PARAM_MAPPING, get_param_name, star_name='31star'):
+def step1_preprocessing(csv_dir, base_dir, PARAM_MAPPING, get_param_name, star_name='31star'):
     """Step 1: 数据预处理"""
     print("\n" + "="*60)
     print("Step 1: 数据预处理")
     print("="*60)
 
-    df = pd.read_csv(csv_path, parse_dates=['satelliteTime'])
-    print(f"原始数据: {len(df)} 行")
+    # 读取所有CSV文件
+    csv_files = list(Path(csv_dir).glob('*.csv'))
+    print(f"找到 {len(csv_files)} 个CSV文件:")
+    for csv_file in csv_files:
+        print(f"  - {csv_file.name}")
+
+    dfs = []
+    for csv_file in csv_files:
+        try:
+            df = pd.read_csv(csv_file, parse_dates=['satelliteTime'])
+            print(f"  读取 {csv_file.name}: {len(df)} 行")
+            dfs.append(df)
+        except Exception as e:
+            print(f"  读取 {csv_file.name} 失败: {e}")
+
+    # 合并所有数据
+    df = pd.concat(dfs, ignore_index=True)
+    print(f"合并后数据: {len(df)} 行")
 
     package_groups = df.groupby('packageCode')
     print(f"发现 {len(package_groups)} 个遥测包")
@@ -1455,13 +1471,14 @@ def main(group='jg01', star_name='31star'):
         print(f"未找到 CSV 文件在: {ori_data_dir}")
         sys.exit(1)
 
-    csv_file = csv_files[0]
-    print(f"使用原始数据文件: {csv_file}")
+    print(f"找到原始数据文件: {len(csv_files)} 个")
+    for csv_file in csv_files:
+        print(f"  - {csv_file.name}")
 
     base_dir = cleanup_and_create_dirs(star_name)
 
-    # Step 1: 数据预处理
-    step1_data = step1_preprocessing(csv_file, base_dir, PARAM_MAPPING, get_param_name, star_name)
+    # Step 1: 数据预处理 - 使用CSV目录（读取所有文件）
+    step1_data = step1_preprocessing(ori_data_dir, base_dir, PARAM_MAPPING, get_param_name, star_name)
 
     # Step 2: 状态筛选
     terminal_data = step2_state_filter(step1_data, base_dir, TERMINALS)

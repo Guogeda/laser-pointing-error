@@ -34,6 +34,11 @@ Phase 3
 - [x] 实现温度参数配置文件 (`src/config/temperature_params.py`)
 - [x] 实现温度与误差关系分析模块（每个终端单独分析）
 - [x] 增强可视化功能（温度变化率、频谱分析、温度梯度）
+- [x] 实现载荷开关机与指向误差关系分析模块 (`src/payload_power_analysis.py`)
+- [x] 分别处理DBF、L、Ka三个载荷的开关机状态
+- [x] 用不同颜色区域表示三个载荷的开机时间段
+- [x] 说明每个载荷温度使用的遥测量
+- [x] 成功运行载荷开关机分析模块，分析了31star、32star、61star的所有终端
 - **Status:** complete
 
 ### Phase 4: Testing & Verification
