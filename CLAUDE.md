@@ -32,7 +32,11 @@ Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFo
 3. **指向误差计算**：计算方位/俯仰/综合指向误差（含方位角环绕处理）、统计分析、可视化
 4. **链路分析**：配对分析建链卫星的误差关系、温度与误差相关性分析、对端温度与本端误差关系分析
 5. **温度与误差关系分析**：分析激光指向误差与在轨温度的关系（前光路、后光路、载荷温度），包括相关性分析、滞后分析、温度变化率分析、频谱分析、温度梯度分析、多元回归分析等
-6. **载荷开关机与指向误差关系分析**：通过**状态机时间窗口温变速率检测**方法识别三个载荷（DBF、L、Ka）的开关机时间段，用不同颜色区域在时间序列图中表示。使用20秒时间窗口计算温度变化率，基于1.5倍标准差的动态阈值进行检测，最小持续时间为10分钟，目标开机时间段为20分钟。
+6. **热形变分离分析**：分离周期性和随机性热形变成分，使用120分钟移动平均滤波，分别分析：
+   - **周期性热形变**：太阳辐照度、前后光路温度（120分钟轨道周期）
+   - **随机性热形变**：载荷温度变化率（设备状态影响）
+   - **可视化**：热形变与指向误差关系图、各参数周期性/随机性成分分离图
+7. **载荷开关机与指向误差关系分析**：通过**状态机时间窗口温变速率检测**方法识别三个载荷（DBF、L、Ka）的开关机时间段，用不同颜色区域在时间序列图中表示。使用20秒时间窗口计算温度变化率，基于1.5倍标准差的动态阈值进行检测，最小持续时间为10分钟，目标开机时间段为20分钟。
 
 ### 关键技术特点
 
@@ -147,6 +151,11 @@ Commands 文件夹中的配置应使用相对路径或变量（如 ${workspaceFo
 - TMR137-TMR139：DBF本体及安装面温度（来自packageCode = 0x81）
 - TMR185-TMR193：L射频单元温度（来自packageCode = 0x82）
 - TMR200-TMR201：Ka接收相控阵温度（来自packageCode = 0x82）
+
+**重要说明**：温度与误差关系分析使用单个指定遥测量而非平均值：
+- DBF载荷：仅使用 RM16-DBF安装面1(+Z)（TMR138）
+- L载荷：仅使用 RM83-L射频单元本体（-Y3-X1）（TMR185）
+- Ka载荷：仅使用 RM99-Ka接收相控阵主散热面1(+X)（TMR200）
 
 ### 可视化标准
 
@@ -274,6 +283,20 @@ python src/verify_complete.py jg02 61star
 python src/final_verification.py
 ```
 
+### 温度与误差关系分析
+
+```bash
+# 运行温度与误差关系分析（需要先完成三阶段处理）
+python src/temperature_analysis.py
+```
+
+### 热形变分离分析
+
+```bash
+# 运行热形变分离分析（包含在temperature_analysis.py中）
+python src/temperature_analysis.py
+```
+
 ### 载荷开关机与指向误差关系分析
 
 ```bash
@@ -309,6 +332,7 @@ python src/verify_step2_step3.py
 |------|------|------|------|
 | `src/verify_complete.py` | 完整三阶段流水线（支持jg01/jg02） | ori-data/* 原始CSV | output/ 完整输出 |
 | `src/final_verification.py` | 利用已有Step1数据验证Step2+3 | output/step1-preprocessing/ | output/step3-error-calc/ |
+| `src/temperature_analysis.py` | 温度与误差关系分析、热形变分离分析 | output/step2-state-filter/、output/step3-error-calc/ | 温度与误差关系分析报告和可视化、热形变分离图表 |
 | `src/link_analysis.py` | 链路配对分析（32-31、31-61） | output/step3-error-calc/ | 链路分析报告和可视化 |
 | `src/payload_power_analysis.py` | 载荷开关机与指向误差关系分析 | output/step2-state-filter/、output/step3-error-calc/ | 载荷开关机分析报告和可视化 |
 | `src/verify_step1.py` | 仅Step1预处理示例 | ori-data/* | output/step1-preprocessing/ |

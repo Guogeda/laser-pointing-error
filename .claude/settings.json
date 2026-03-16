@@ -42,7 +42,7 @@
     ]
   },
   "execution": {
-    "timeout": 300000,
+    "timeout": 3000000,
     "maxOutput": 100000
   },
   "commands": {
